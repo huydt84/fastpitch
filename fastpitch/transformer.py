@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -168,12 +170,14 @@ class TransformerLayer(nn.Module):
 class FFTransformer(nn.Module):
     def __init__(self, n_layer, n_head, d_model, d_head, d_inner, kernel_size,
                  dropout, dropatt, dropemb=0.0, embed_input=True,
-                 n_embed=None, d_embed=None, padding_idx=0, pre_lnorm=False):
+                 n_embed=None, d_embed=None, padding_idx=0, pre_lnorm=False, group=-1):
         super(FFTransformer, self).__init__()
+        self.n_layer = n_layer
         self.d_model = d_model
         self.n_head = n_head
         self.d_head = d_head
         self.padding_idx = padding_idx
+        self.group = group
 
         if embed_input:
             self.word_emb = nn.Embedding(n_embed, d_embed or d_model,
@@ -193,9 +197,6 @@ class FFTransformer(nn.Module):
             )
 
     def forward(self, dec_inp, seq_lens=None, conditioning=0):
-        self.num_per_group = len(self.layer)*split
-        assert self.num_per_group.is_integer()
-
         if self.word_emb is None:
             inp = dec_inp
             mask = mask_from_lens(seq_lens).unsqueeze(2)
@@ -209,10 +210,21 @@ class FFTransformer(nn.Module):
 
         out = self.drop(inp + pos_emb + conditioning)
 
-        if self.training
+        temp_list = [i for i in range(self.n_layer)]
+        layer_list = []
+        if self.training and self.group!=-1:
+            for i in range(self.n_layer // self.group):
+                temp = temp_list[i * self.group:(i + 1) * self.group]
+                random.shuffle(temp)
+                layer_list.extend(temp)
+        else:
+            layer_list = [i for i in range(self.n_layer)]
 
-        for layer in self.layers:
-            out = layer(out, mask=mask)
+        for layer_id, layer in enumerate(layer_list):
+            out = self.layers[layer](out, mask)
+
+        # for layer in self.layers:
+        #     out = layer(out, mask=mask)
 
         # out = self.drop(out)
         return out, mask

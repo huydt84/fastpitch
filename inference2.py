@@ -293,4 +293,3 @@ def main():
         
     batches = prepare_input_sequence(args.input, device, args.symbol_set, args.text_cleaners, args.batch_size, args.p_arpabet)
     
-

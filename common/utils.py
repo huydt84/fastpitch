@@ -201,13 +201,18 @@ class BenchmarkStats:
 
 class Checkpointer:
 
-    def __init__(self, save_dir, keep_milestones=[]):
+    def __init__(self, save_dir, keep_milestones=[], teacher=False):
         self.save_dir = save_dir
         self.keep_milestones = keep_milestones
 
-        find = lambda name: [
-            (int(re.search("_(\d+).pt", fn).group(1)), fn)
-            for fn in glob.glob(f"{save_dir}/{name}_checkpoint_*.pt")]
+        if teacher:
+            find = lambda name: [
+                (int(re.search("_(\d+).pt", fn).group(1)), fn)
+                for fn in glob.glob(f"{save_dir}/{name}_checkpoint_teacher_*.pt")]
+        else:
+            find = lambda name: [
+                (int(re.search("_(\d+).pt", fn).group(1)), fn)
+                for fn in glob.glob(f"{save_dir}/{name}_checkpoint_student_*.pt")]
 
         tracked = sorted(find("FastPitch"), key=lambda t: t[0])
         self.tracked = OrderedDict(tracked)
@@ -270,7 +275,7 @@ class Checkpointer:
             warnings.warn("AMP scaler state missing from the checkpoint.")
 
     def maybe_save(self, args, model, ema_model, optimizer, scaler, epoch,
-                   total_iter, config):
+                   total_iter, config, teacher=False):
 
         intermediate = (args.epochs_per_checkpoint > 0
                         and epoch % args.epochs_per_checkpoint == 0)
@@ -298,7 +303,10 @@ class Checkpointer:
         if ema_model is not None:
             ckpt["ema_state_dict"] = unwrap(ema_model).state_dict()
 
-        fpath = Path(args.output, f"FastPitch_checkpoint_{epoch}_teacher.pt")
+        if teacher:
+            fpath = Path(args.output, f"FastPitch_checkpoint_teacher_{epoch}.pt")
+        else:
+            fpath = Path(args.output, f"FastPitch_checkpoint_student_{epoch}.pt")
         print(f"Saving model and optimizer state at epoch {epoch} to {fpath}")
         torch.save(ckpt, fpath)
 

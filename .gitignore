@@ -4,6 +4,9 @@ output*
 scripts_joc/
 tests/
 pretrained_models/
+*checkpoint*
+audio/nvlog_*
+
 *.pyc
 __pycache__
 

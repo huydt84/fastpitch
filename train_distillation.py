@@ -31,6 +31,7 @@ import os
 import time
 from collections import defaultdict, OrderedDict
 from itertools import cycle
+import json
 
 import numpy as np
 import torch
@@ -117,6 +118,8 @@ def parse_args(parser):
                      default=1.0, help='Rescale pitch predictor loss')
     opt.add_argument('--attn-loss-scale', type=float,
                      default=1.0, help='Rescale alignment loss')
+    opt.add_argument('--teacher-loss-weight', type=float, default=0.75,
+                       help='Weight of teacher model prediction when calculating loss (0-1)')
 
     data = parser.add_argument_group('dataset parameters')
     data.add_argument('--training-files', type=str, nargs='*', required=True,
@@ -204,7 +207,7 @@ def validate(model, epoch, total_iter, criterion, val_loader,
         for i, batch in enumerate(val_loader):
             x, y, num_frames = batch_to_gpu(batch)
             y_pred = model(x)
-            loss, meta = criterion(y_pred, y, is_training=False, meta_agg='sum')
+            loss, meta = criterion(y_pred, y, meta_agg='sum')
 
             for k, v in meta.items():
                 val_meta[k] += v
@@ -305,6 +308,11 @@ def main():
     model_config = models.get_model_config('FastPitch', args)
     model = models.get_model('FastPitch', model_config, device)
     
+    f = open("fastpitch_teacher.json") 
+    teacher_model_config = json.load(f)
+    teacher_model = models.get_model('FastPitch', teacher_model_config, device=device)
+    load_pretrained_weights(teacher_model, "output/FastPitch_checkpoint_teacher_100.pt")
+    
     if args.init_from_checkpoint is not None:
         load_pretrained_weights(model, args.init_from_checkpoint)
 
@@ -313,6 +321,9 @@ def main():
     # Store pitch mean/std as params to translate from Hz during inference
     model.pitch_mean[0] = args.pitch_mean
     model.pitch_std[0] = args.pitch_std
+    
+    teacher_model.pitch_mean[0] = args.pitch_mean
+    teacher_model.pitch_std[0] = args.pitch_std
 
     kw = dict(lr=args.learning_rate, betas=(0.9, 0.98), eps=1e-9,
               weight_decay=args.weight_decay)
@@ -368,6 +379,7 @@ def main():
         mt_ema_params = init_multi_tensor_ema(model, ema_model)
 
     model.train()
+    teacher_model.eval()
     bmark_stats = BenchmarkStats()
 
     torch.cuda.synchronize()
@@ -396,8 +408,12 @@ def main():
             x, y, num_frames = batch_to_gpu(batch)
 
             with torch.cuda.amp.autocast(enabled=args.amp):
+                with torch.no_grad():
+                    teacher_pred = teacher_model(x)
+                    
                 y_pred = model(x)
-                loss, meta = criterion(y_pred, y)
+                loss, meta = criterion(y_pred, y, y)
+                teacher_loss, teacher_meta = criterion(y_pred, teacher_pred, y, is_student=False)
 
                 if (args.kl_loss_start_epoch is not None
                         and epoch >= args.kl_loss_start_epoch):
@@ -410,12 +426,19 @@ def main():
                     kl_weight = min((epoch - args.kl_loss_start_epoch) / args.kl_loss_warmup_epochs, 1.0) * args.kl_loss_weight
                     meta['kl_loss'] = binarization_loss.clone().detach() * kl_weight
                     loss += kl_weight * binarization_loss
+                    
+                    _, _, _, _, _, _, _, _, attn_soft, attn_hard, _, _ = teacher_pred
+                    binarization_loss = attention_kl_loss(attn_hard, attn_soft)
+                    kl_weight = min((epoch - args.kl_loss_start_epoch) / args.kl_loss_warmup_epochs, 1.0) * args.kl_loss_weight
+                    meta['kl_loss'] += binarization_loss.clone().detach() * kl_weight
+                    teacher_loss += kl_weight * binarization_loss
 
                 else:
                     meta['kl_loss'] = torch.zeros_like(loss)
                     kl_weight = 0
                     binarization_loss = 0
 
+                loss = args.teacher_loss_weight * teacher_loss + (1-args.teacher_loss_weight) * loss
                 loss /= args.grad_accumulation
 
             meta = {k: v / args.grad_accumulation

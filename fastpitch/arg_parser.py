@@ -49,7 +49,7 @@ def parse_fastpitch_args(parent, add_help=False):
                          help='Input embedding dimension')
 
     in_fft = parser.add_argument_group('input FFT parameters')
-    in_fft.add_argument('--in-fft-n-layers', default=6, type=int,
+    in_fft.add_argument('--in-fft-n-layers', default=2, type=int,
                         help='Number of FFT blocks')
     in_fft.add_argument('--in-fft-n-heads', default=1, type=int,
                         help='Number of attention heads')
@@ -69,7 +69,7 @@ def parse_fastpitch_args(parent, add_help=False):
                         help='Dropout added to word+positional embeddings')
 
     out_fft = parser.add_argument_group('output FFT parameters')
-    out_fft.add_argument('--out-fft-n-layers', default=6, type=int,
+    out_fft.add_argument('--out-fft-n-layers', default=2, type=int,
                          help='Number of FFT blocks')
     out_fft.add_argument('--out-fft-n-heads', default=1, type=int,
                          help='Number of attention heads')

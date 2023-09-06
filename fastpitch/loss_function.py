@@ -44,19 +44,25 @@ class FastPitchLoss(nn.Module):
         self.attn_loss_scale = attn_loss_scale
         self.attn_ctc_loss = AttentionCTCLoss()
 
-    def forward(self, model_out, targets, is_training=True, meta_agg='mean'):
+    def forward(self, model_out, targets, ground_truth=None, is_student=True, meta_agg='mean'):
         (mel_out, dec_mask, dur_pred, log_dur_pred, pitch_pred, pitch_tgt,
          energy_pred, energy_tgt, attn_soft, attn_hard, attn_dur,
          attn_logprob) = model_out
-
-        (mel_tgt, in_lens, out_lens) = targets
+        
+        if is_student:
+            (mel_tgt, in_lens, out_lens) = targets
+        else:
+            (mel_tgt, *_) = targets
+            (_, in_lens, out_lens) = ground_truth
 
         dur_tgt = attn_dur
         dur_lens = in_lens
 
         mel_tgt.requires_grad = False
-        # (B,H,T) => (B,T,H)
-        mel_tgt = mel_tgt.transpose(1, 2)
+        
+        if is_student:
+            # (B,H,T) => (B,T,H)
+            mel_tgt = mel_tgt.transpose(1, 2)
 
         dur_mask = mask_from_lens(dur_lens, max_len=dur_tgt.size(1))
         log_dur_tgt = torch.log(dur_tgt.float() + 1)
