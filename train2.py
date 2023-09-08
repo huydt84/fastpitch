@@ -204,7 +204,7 @@ def validate(model, epoch, total_iter, criterion, val_loader,
         for i, batch in enumerate(val_loader):
             x, y, num_frames = batch_to_gpu(batch)
             y_pred = model(x)
-            loss, meta = criterion(y_pred, y, is_training=False, meta_agg='sum')
+            loss, meta = criterion(y_pred, y, meta_agg='sum')
 
             for k, v in meta.items():
                 val_meta[k] += v

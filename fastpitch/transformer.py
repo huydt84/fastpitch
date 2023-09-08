@@ -170,7 +170,7 @@ class TransformerLayer(nn.Module):
 class FFTransformer(nn.Module):
     def __init__(self, n_layer, n_head, d_model, d_head, d_inner, kernel_size,
                  dropout, dropatt, dropemb=0.0, embed_input=True,
-                 n_embed=None, d_embed=None, padding_idx=0, pre_lnorm=False, group=-1):
+                 n_embed=None, d_embed=None, padding_idx=0, pre_lnorm=False, group=-1, local_attn=True):
         super(FFTransformer, self).__init__()
         self.n_layer = n_layer
         self.d_model = d_model
@@ -204,7 +204,7 @@ class FFTransformer(nn.Module):
             inp = self.word_emb(dec_inp)
             # [bsz x L x 1]
             mask = (dec_inp != self.padding_idx).unsqueeze(2)
-
+            
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
         pos_emb = self.pos_emb(pos_seq) * mask
 
@@ -212,7 +212,7 @@ class FFTransformer(nn.Module):
 
         temp_list = [i for i in range(self.n_layer)]
         layer_list = []
-        if self.training and self.group!=-1:
+        if self.training and self.group != -1:
             for i in range(self.n_layer // self.group):
                 temp = temp_list[i * self.group:(i + 1) * self.group]
                 random.shuffle(temp)
@@ -220,7 +220,7 @@ class FFTransformer(nn.Module):
         else:
             layer_list = [i for i in range(self.n_layer)]
 
-        for layer_id, layer in enumerate(layer_list):
+        for layer in layer_list:
             out = self.layers[layer](out, mask)
 
         # for layer in self.layers:

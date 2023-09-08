@@ -13,7 +13,7 @@ export OMP_NUM_THREADS=1
 : ${AMP:=true}
 : ${SEED:=""}
 # : ${CHECKPOINT:=output/FastPitch_checkpoint_30.pt}
-: ${CHECKPOINT_STUDENT:=output/FastPitch_checkpoint_student_00.pt}
+# : ${CHECKPOINT_STUDENT:=output/FastPitch_checkpoint_student_00.pt}
 
 : ${LEARNING_RATE:=0.01}
 
@@ -72,8 +72,8 @@ ARGS+=" --kl-loss-warmup-epochs $KL_LOSS_WARMUP"
 ARGS+=" --text-cleaners $TEXT_CLEANERS"
 ARGS+=" --n-speakers $NSPEAKERS"
 # ARGS+=" --checkpoint-path $CHECKPOINT"
-ARGS+=" --init-from-checkpoint $CHECKPOINT_STUDENT"
-ARGS+=" --teacher-loss-weight 0.75"
+# ARGS+=" --init-from-checkpoint $CHECKPOINT_STUDENT"
+# ARGS+=" --teacher-loss-weight 0.75"
 
 [ "$AMP" = "true" ]                    && ARGS+=" --amp"
 [ "$PHONE" = "true" ]                  && ARGS+=" --p-arpabet 1.0"
@@ -103,4 +103,4 @@ fi
 mkdir -p "$OUTPUT_DIR"
 
 : ${DISTRIBUTED:="-m torch.distributed.launch --nproc_per_node $NUM_GPUS"}
-python train_distillation.py $ARGS "$@"
+python train2.py $ARGS "$@"

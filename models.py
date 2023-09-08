@@ -231,7 +231,7 @@ def load_model_from_ckpt(checkpoint_data, model, key='state_dict'):
 def load_and_setup_model(model_name, parser, checkpoint, amp, device,
                          unk_args=[], forward_is_infer=False, jitable=False):
     if checkpoint is not None:
-        ckpt_data = torch.load(checkpoint)
+        ckpt_data = torch.load(checkpoint, map_location="cpu")
         print(f'{model_name}: Loading {checkpoint}...')
         ckpt_config = ckpt_data.get('config')
         if ckpt_config is None:

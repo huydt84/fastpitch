@@ -162,9 +162,14 @@ def prepare_input_sequence(fields, device, symbol_set, text_cleaners,
                            batch_size=128, dataset=None, load_mels=False,
                            load_pitch=False, p_arpabet=0.0):
     tp = get_text_processing(symbol_set, text_cleaners, p_arpabet)
-
+    print(symbol_set)
+    print(text_cleaners)
+    print(p_arpabet)
+    print(111111111)
+    print(fields['text'])
     fields['text'] = [torch.LongTensor(tp.encode_text(text))
                       for text in fields['text']]
+    print(fields['text'])
     order = np.argsort([-t.size(0) for t in fields['text']])
 
     fields['text'] = [fields['text'][i] for i in order]
@@ -264,7 +269,7 @@ def compute_mel_loss(mels, lens, gt_mels, gt_lens):
 
 
 class MeasureTime(list):
-    def __init__(self, *args, cuda=True, **kwargs):
+    def __init__(self, *args, cuda=False, **kwargs):
         super(MeasureTime, self).__init__(*args, **kwargs)
         self.cuda = cuda
 

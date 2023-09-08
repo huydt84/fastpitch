@@ -39,6 +39,7 @@ from common.utils import mask_from_lens
 from fastpitch.alignment import b_mas, mas_width1
 from fastpitch.attention import ConvAttention
 from fastpitch.transformer import FFTransformer
+from fastpitch.local_transformer import LocalTransformer
 
 
 def regulate_len(durations, enc_out, pace: float = 1.0,
@@ -129,22 +130,36 @@ class FastPitch(nn.Module):
                  energy_predictor_kernel_size, energy_predictor_filter_size,
                  p_energy_predictor_dropout, energy_predictor_n_layers,
                  energy_embedding_kernel_size,
-                 n_speakers, speaker_emb_weight, pitch_conditioning_formants=1):
+                 n_speakers, speaker_emb_weight, pitch_conditioning_formants=1, local=False):
         super(FastPitch, self).__init__()
 
-        self.encoder = FFTransformer(
-            n_layer=in_fft_n_layers, n_head=in_fft_n_heads,
-            d_model=symbols_embedding_dim,
-            d_head=in_fft_d_head,
-            d_inner=in_fft_conv1d_filter_size,
-            kernel_size=in_fft_conv1d_kernel_size,
-            dropout=p_in_fft_dropout,
-            dropatt=p_in_fft_dropatt,
-            dropemb=p_in_fft_dropemb,
-            embed_input=True,
-            d_embed=symbols_embedding_dim,
-            n_embed=n_symbols,
-            padding_idx=padding_idx)
+        if local:
+            self.encoder = LocalTransformer(
+                depth=in_fft_n_layers,
+                heads=in_fft_n_heads,
+                dim_head=in_fft_d_head,
+                num_tokens=n_symbols,
+                dim=symbols_embedding_dim,
+                attn_dropout=p_in_fft_dropatt,
+                ff_dropout=p_in_fft_dropout,
+                embed_input=True,
+                padding_idx=padding_idx
+            )
+        else:
+            self.encoder = FFTransformer(
+                n_layer=in_fft_n_layers, n_head=in_fft_n_heads,
+                d_model=symbols_embedding_dim,
+                d_head=in_fft_d_head,
+                d_inner=in_fft_conv1d_filter_size,
+                kernel_size=in_fft_conv1d_kernel_size,
+                dropout=p_in_fft_dropout,
+                dropatt=p_in_fft_dropatt,
+                dropemb=p_in_fft_dropemb,
+                embed_input=True,
+                d_embed=symbols_embedding_dim,
+                n_embed=n_symbols,
+                padding_idx=padding_idx
+            )
 
         if n_speakers > 1:
             self.speaker_emb = nn.Embedding(n_speakers, symbols_embedding_dim)
@@ -158,19 +173,32 @@ class FastPitch(nn.Module):
             kernel_size=dur_predictor_kernel_size,
             dropout=p_dur_predictor_dropout, n_layers=dur_predictor_n_layers
         )
-
-        self.decoder = FFTransformer(
-            n_layer=out_fft_n_layers, n_head=out_fft_n_heads,
-            d_model=symbols_embedding_dim,
-            d_head=out_fft_d_head,
-            d_inner=out_fft_conv1d_filter_size,
-            kernel_size=out_fft_conv1d_kernel_size,
-            dropout=p_out_fft_dropout,
-            dropatt=p_out_fft_dropatt,
-            dropemb=p_out_fft_dropemb,
-            embed_input=False,
-            d_embed=symbols_embedding_dim
-        )
+        
+        if local:
+            self.decoder = LocalTransformer(
+                depth=in_fft_n_layers,
+                heads=in_fft_n_heads,
+                dim_head=in_fft_d_head,
+                num_tokens=n_symbols,
+                dim=symbols_embedding_dim,
+                attn_dropout=p_in_fft_dropatt,
+                ff_dropout=p_in_fft_dropout,
+                embed_input=False,
+                padding_idx=padding_idx
+            )
+        else:
+            self.decoder = FFTransformer(
+                n_layer=out_fft_n_layers, n_head=out_fft_n_heads,
+                d_model=symbols_embedding_dim,
+                d_head=out_fft_d_head,
+                d_inner=out_fft_conv1d_filter_size,
+                kernel_size=out_fft_conv1d_kernel_size,
+                dropout=p_out_fft_dropout,
+                dropatt=p_out_fft_dropatt,
+                dropemb=p_out_fft_dropemb,
+                embed_input=False,
+                d_embed=symbols_embedding_dim
+            )
 
         self.pitch_predictor = TemporalPredictor(
             in_fft_output_size,
